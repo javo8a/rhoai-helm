@@ -1,0 +1,15 @@
+#!/bin/bash
+set -euo pipefail
+
+NAMESPACE="${DASHBOARD_NAMESPACE:?DASHBOARD_NAMESPACE required}"
+DEPLOYMENT="${DASHBOARD_DEPLOYMENT:?DASHBOARD_DEPLOYMENT required}"
+
+echo "Waiting for ${DEPLOYMENT} in ${NAMESPACE}..."
+until oc get deployment "${DEPLOYMENT}" -n "${NAMESPACE}" >/dev/null 2>&1; do
+  sleep 10
+done
+
+oc rollout restart deployment/"${DEPLOYMENT}" -n "${NAMESPACE}"
+oc rollout status deployment/"${DEPLOYMENT}" -n "${NAMESPACE}" --timeout=300s
+
+echo "Restarted ${DEPLOYMENT}"

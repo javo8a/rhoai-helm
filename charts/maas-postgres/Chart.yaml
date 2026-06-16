@@ -1,0 +1,7 @@
+---
+apiVersion: v2
+name: maas-postgres
+description: Plain Postgres deployment for MaaS API key storage (RHOAI 3.4)
+type: application
+version: 0.1.0
+appVersion: "16"

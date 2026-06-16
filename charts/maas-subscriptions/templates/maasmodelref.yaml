@@ -1,0 +1,16 @@
+{{- range $name, $ref := .Values.modelRefs }}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: {{ $name | quote }}
+  namespace: {{ $ref.namespace | quote }}
+  labels:
+    migration.maas.opendatahub.io/from-tier: {{ $ref.tier | quote }}
+  annotations:
+    migration.maas.opendatahub.io/original-tier: {{ $ref.tier | quote }}
+spec:
+  modelRef:
+    kind: LLMInferenceService
+    name: {{ $name | quote }}
+{{- end }}

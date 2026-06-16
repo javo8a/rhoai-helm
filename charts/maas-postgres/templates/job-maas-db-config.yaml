@@ -1,0 +1,111 @@
+{{- $pg := .Values.maas.postgres }}
+{{- $db := $pg.dbConfig }}
+{{- $needsJob := and (not $db.existingSecret) (or $pg.deploy.enabled $db.credentialsSecret $db.host) }}
+{{- if $needsJob }}
+{{- $mode := ternary "bundled" "external" $pg.deploy.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: create-maas-db-config
+  namespace: {{ .Values.namespace }}
+  labels:
+    app.kubernetes.io/name: maas-postgres
+    app.kubernetes.io/instance: {{ .Release.Name }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: create-maas-db-config
+  namespace: {{ .Values.namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: create-maas-db-config
+  namespace: {{ .Values.namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: create-maas-db-config
+subjects:
+  - kind: ServiceAccount
+    name: create-maas-db-config
+    namespace: {{ .Values.namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: create-maas-db-config-script
+  namespace: {{ .Values.namespace }}
+data:
+  create-maas-db-config.sh: |
+{{ .Files.Get "files/create-maas-db-config.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: create-maas-db-config
+  namespace: {{ .Values.namespace }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: create-maas-db-config
+      restartPolicy: Never
+      containers:
+        - name: create-maas-db-config
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/create-maas-db-config.sh"]
+          env:
+            - name: POSTGRES_NAMESPACE
+              value: {{ .Values.namespace | quote }}
+            - name: MAAS_DB_SECRET
+              value: {{ $db.secretName | quote }}
+            - name: MAAS_DB_CONFIG_MODE
+              value: {{ $mode | quote }}
+            {{- if $pg.deploy.enabled }}
+            - name: POSTGRES_SECRET
+              value: {{ $db.postgresSecretName | quote }}
+            - name: POSTGRES_SERVICE
+              value: {{ $db.postgresServiceName | quote }}
+            - name: POSTGRES_PORT
+              value: {{ $db.port | quote }}
+            {{- else }}
+            - name: CREDENTIALS_SECRET
+              value: {{ $db.credentialsSecret | quote }}
+            - name: CONNECTION_URL_KEY
+              value: {{ $db.connectionUrlKey | quote }}
+            - name: POSTGRES_HOST
+              value: {{ $db.host | quote }}
+            - name: POSTGRES_PORT
+              value: {{ $db.port | quote }}
+            - name: POSTGRES_DB
+              value: {{ $db.database | quote }}
+            - name: POSTGRES_USER
+              value: {{ $db.user | quote }}
+            - name: PASSWORD_KEY
+              value: {{ $db.passwordKey | quote }}
+            - name: SSLMODE
+              value: {{ $db.sslmode | quote }}
+            {{- end }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: create-maas-db-config-script
+            defaultMode: 493
+{{- end }}

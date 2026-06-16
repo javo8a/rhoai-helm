@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apply-gpu-cluster-policy
+  namespace: nvidia-gpu-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apply-gpu-cluster-policy
+rules:
+  - apiGroups: ["nvidia.com"]
+    resources: ["clusterpolicies"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apply-gpu-cluster-policy
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: apply-gpu-cluster-policy
+subjects:
+  - kind: ServiceAccount
+    name: apply-gpu-cluster-policy
+    namespace: nvidia-gpu-operator
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-gpu-cluster-policy
+  namespace: nvidia-gpu-operator
+data:
+  clusterpolicy.yaml: |
+    ---
+    apiVersion: nvidia.com/v1
+    kind: ClusterPolicy
+    metadata:
+      name: gpu-cluster-policy
+    spec:
+      {{- tpl (toYaml .Values.gpuOperator.policy) $ | nindent 6 }}
+  apply-clusterpolicy.sh: |
+{{ .Files.Get "files/apply-clusterpolicy.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-gpu-cluster-policy
+  namespace: nvidia-gpu-operator
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: apply-gpu-cluster-policy
+      restartPolicy: Never
+      containers:
+        - name: apply-gpu-cluster-policy
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/apply-clusterpolicy.sh"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: config
+          configMap:
+            name: apply-gpu-cluster-policy
+        - name: scripts
+          configMap:
+            name: apply-gpu-cluster-policy
+            items:
+              - key: apply-clusterpolicy.sh
+                path: apply-clusterpolicy.sh
+            defaultMode: 493

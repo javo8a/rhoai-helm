@@ -1,0 +1,75 @@
+{{- if .Values.csvPatch.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-rhcl-csv
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-rhcl-csv
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["clusterserviceversions"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-rhcl-csv
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-rhcl-csv
+subjects:
+  - kind: ServiceAccount
+    name: patch-rhcl-csv
+    namespace: {{ .Values.kuadrant.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-rhcl-csv
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: patch-rhcl-csv
+      restartPolicy: Never
+      containers:
+        - name: patch-rhcl-csv
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-rhcl-csv.sh"]
+          env:
+            - name: RHCL_CSV
+              value: {{ .Values.csvPatch.csvName | quote }}
+            - name: RHCL_NAMESPACE
+              value: {{ .Values.kuadrant.namespace | quote }}
+            - name: ISTIO_GATEWAY_CONTROLLER_NAMES
+              value: {{ .Values.csvPatch.gatewayControllerNames | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: rhcl-bootstrap-scripts
+            defaultMode: 493
+{{- end }}

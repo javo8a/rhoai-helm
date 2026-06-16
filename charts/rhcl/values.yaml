@@ -1,0 +1,57 @@
+global:
+  toolsImage: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+
+install-rhcl:
+  enabled: true
+  operators:
+    rhcl-operator:
+      channel: stable
+      installPlanApproval: Manual
+      namespace: kuadrant-system
+      operatorGroup:
+        enabled: true
+      startingCSV: rhcl-operator.v1.3.4
+
+kuadrant:
+  create: true
+  namespace: kuadrant-system
+  spec:
+    observability:
+      enable: true
+
+authorino:
+  overwrite: true
+  serviceTls: true
+  certSecretName: authorino-server-cert
+  spec:
+    clusterWide: true
+    healthz: {}
+    listener:
+      ports: {}
+      tls:
+        certSecretRef:
+          name: authorino-server-cert
+        enabled: true
+    oidcServer:
+      tls:
+        enabled: true
+        certSecretRef:
+          name: authorino-server-cert
+
+# bootstrap.sh: patch RHCL CSV ISTIO_GATEWAY_CONTROLLER_NAMES
+csvPatch:
+  enabled: true
+  csvName: rhcl-operator.v1.3.4
+  gatewayControllerNames: "istio.io/gateway-controller,openshift.io/gateway-controller/v1"
+
+# bootstrap.sh: enable kuadrant-console-plugin
+consolePlugin:
+  enabled: true
+  name: kuadrant-console-plugin
+
+# bootstrap.sh step 11: WASM shim workaround for disconnected clusters (CONNLINK-805).
+# Enable per cluster via cluster.yaml; requires wasmShimImage and protectedRegistry.
+disconnected:
+  enabled: false
+  wasmShimImage: ""
+  protectedRegistry: ""

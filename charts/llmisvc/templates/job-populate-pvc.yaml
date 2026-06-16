@@ -1,0 +1,76 @@
+{{- with .Values.model.pvc }}
+{{- if .preload }}
+{{- $model := trimPrefix "hf://" $.Values.model.uri }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: populate-{{ include "llminferenceservice.fullname" $ }}-model
+  annotations:
+    argocd.argoproj.io/sync-wave: "-2"
+  labels:
+    {{- include "llminferenceservice.labels" $ | nindent 4 }}
+automountServiceAccountToken: false
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: populate-{{ include "llminferenceservice.fullname" $ }}-model
+  annotations:
+    argocd.argoproj.io/hook: Sync
+    argocd.argoproj.io/sync-wave: "-1"
+  labels:
+    {{- include "llminferenceservice.labels" $ | nindent 4 }}
+spec:
+  backoffLimit: 3
+  template:
+    spec:
+      serviceAccountName: populate-{{ include "llminferenceservice.fullname" $ }}-model
+      restartPolicy: Never
+      containers:
+        - name: populate-model
+          image: {{ include "llminferenceservice.image" $ }}
+          imagePullPolicy: IfNotPresent
+          workingDir: /mnt/models
+          command:
+            - hf
+          args:
+            - download
+            - --local-dir
+            - .
+          {{- with $.Values.huggingface }}
+            {{- with .args }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            - {{ $model }}
+          env:
+            - name: HF_HUB_OFFLINE
+              value: "0"
+            - name: HOME
+              value: /home/vllm
+          {{- with .token }}
+          envFrom:
+            - secretRef:
+                name: HF_TOKEN
+          {{- end }}
+          {{- end }}
+          volumeMounts:
+            - name: model
+              mountPath: /mnt/models
+            - name: home
+              mountPath: /home/vllm
+      volumes:
+        - name: model
+          persistentVolumeClaim:
+            claimName: {{ include "llminferenceservice.fullname" $ }}-model
+        - name: home
+          emptyDir: {}
+      {{- with $.Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+      {{- with $.Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 6 }}
+      {{- end }}
+{{- end }}
+{{- end }}

@@ -1,0 +1,22 @@
+{{- if and .Values.disconnected.enabled .Values.disconnected.gatewayConfig.wasmInsecureRegistries }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.disconnected.gatewayConfig.name }}
+  namespace: {{ .Values.disconnected.gatewayConfig.namespace }}
+data:
+  deployment: |
+    spec:
+      template:
+        spec:
+          containers:
+          - name: istio-proxy
+            env:
+            - name: WASM_INSECURE_REGISTRIES
+              value: {{ .Values.disconnected.gatewayConfig.wasmInsecureRegistries | quote }}
+  {{- with .Values.disconnected.gatewayConfig.serviceType }}
+  service: |
+    spec:
+      type: {{ . }}
+  {{- end }}
+{{- end }}

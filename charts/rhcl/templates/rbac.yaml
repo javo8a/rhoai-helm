@@ -1,0 +1,40 @@
+{{- if .Values.kuadrant.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: restart-kuadrant-operator
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: restart-kuadrant-operator
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: restart-kuadrant-operator
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: restart-kuadrant-operator
+subjects:
+  - kind: ServiceAccount
+    name: restart-kuadrant-operator
+    namespace: {{ .Values.kuadrant.namespace }}
+{{- end }}

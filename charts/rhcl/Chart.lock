@@ -1,0 +1,6 @@
+dependencies:
+- name: install-operators
+  repository: file://../install-operators
+  version: 0.1.0
+digest: sha256:72dc1d8e9174131682cc69affb60350fc7546de14ee75f24b215d6246f838489
+generated: "2026-06-05T10:31:35.960898-04:00"

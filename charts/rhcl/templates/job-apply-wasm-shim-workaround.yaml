@@ -1,0 +1,71 @@
+{{- if and .Values.disconnected.enabled .Values.disconnected.wasmShimImage .Values.disconnected.protectedRegistry }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apply-wasm-shim-workaround
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "rhcl.fullname" . }}-apply-wasm-shim-workaround
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: apply-wasm-shim-workaround
+    namespace: {{ .Values.kuadrant.namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-wasm-shim-workaround-script
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+data:
+  apply-wasm-shim-workaround.sh: |
+{{ .Files.Get "files/disconnected/apply-wasm-shim-workaround.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-wasm-shim-workaround
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: apply-wasm-shim-workaround
+      restartPolicy: Never
+      containers:
+        - name: apply-wasm-shim-workaround
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/apply-wasm-shim-workaround.sh"]
+          env:
+            - name: WASM_SHIM_IMAGE
+              value: {{ .Values.disconnected.wasmShimImage | quote }}
+            - name: PROTECTED_REGISTRY
+              value: {{ .Values.disconnected.protectedRegistry | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: apply-wasm-shim-workaround-script
+            defaultMode: 493
+{{- end }}

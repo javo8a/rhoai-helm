@@ -1,0 +1,51 @@
+global:
+  cluster:
+    name: cluster
+    baseDomain: example.com
+
+# Disconnected cluster workaround (CONNLINK-805): optional per cluster via cluster.yaml.
+# Creates default-gateway-config in openshift-ingress for WASM shim pulls from internal artifactory.
+disconnected:
+  enabled: false
+  gatewayConfig:
+    name: default-gateway-config
+    namespace: openshift-ingress
+    wasmInsecureRegistries: ""
+    # Set to ClusterIP for lab environments that require it; omit or leave empty otherwise.
+    serviceType: ""
+
+gatewayClasses:
+  openshift-default:
+    controllerName: openshift.io/gateway-controller/v1
+
+gateways:
+  maas-default-gateway:
+    namespace: openshift-ingress
+    gatewayClassName: openshift-default
+    metadata:
+      annotations:
+        opendatahub.io/managed: "false"
+        security.opendatahub.io/authorino-tls-bootstrap: "true"
+      labels:
+        app.kubernetes.io/component: gateway
+        app.kubernetes.io/instance: maas-default-gateway
+        app.kubernetes.io/name: maas
+        istio.io/rev: openshift-gateway
+        opendatahub.io/managed: "false"
+    listeners:
+      http:
+        hostname: "maas.apps.{{ .Values.global.cluster.name }}.{{ .Values.global.cluster.baseDomain }}"
+        port: 80
+        protocol: HTTP
+      https:
+        hostname: "maas.apps.{{ .Values.global.cluster.name }}.{{ .Values.global.cluster.baseDomain }}"
+        port: 443
+        protocol: HTTPS
+        tls:
+          mode: Terminate
+          certificateRefs:
+            - group: ""
+              kind: Secret
+              name: cert-manager-ingress-cert
+        certificate:
+          create: false

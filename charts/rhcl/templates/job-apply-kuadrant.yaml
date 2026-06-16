@@ -1,0 +1,101 @@
+{{- if .Values.kuadrant.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apply-kuadrant
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: apply-kuadrant
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["kuadrant.io"]
+    resources: ["kuadrants"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: apply-kuadrant
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: apply-kuadrant
+subjects:
+  - kind: ServiceAccount
+    name: apply-kuadrant
+    namespace: {{ .Values.kuadrant.namespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-kuadrant
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+data:
+  kuadrant.yaml: |
+    ---
+    apiVersion: kuadrant.io/v1beta1
+    kind: Kuadrant
+    metadata:
+      name: kuadrant
+      namespace: {{ .Values.kuadrant.namespace }}
+      labels:
+        {{- include "rhcl.labels" . | nindent 8 }}
+    {{- with .Values.kuadrant.spec }}
+    spec:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  apply-kuadrant.sh: |
+{{ .Files.Get "files/apply-kuadrant.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-kuadrant
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: apply-kuadrant
+      restartPolicy: Never
+      containers:
+        - name: apply-kuadrant
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/apply-kuadrant.sh"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: config
+          configMap:
+            name: apply-kuadrant
+        - name: scripts
+          configMap:
+            name: apply-kuadrant
+            items:
+              - key: apply-kuadrant.sh
+                path: apply-kuadrant.sh
+            defaultMode: 493
+{{- end }}

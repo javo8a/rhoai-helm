@@ -1,0 +1,99 @@
+# Multi-model mode: set models map to deploy simulator LLMInferenceServices.
+# Leave empty to use single-model values below.
+models: {}
+
+namespace:
+  create: true
+  name: ai-models
+  labels:
+    kubernetes.io/metadata.name: ai-models
+    opendatahub.io/dashboard: "true"
+
+fullnameOverride: ""
+displaynameOverride: ""
+
+image:
+  registry: registry.redhat.io
+  repository: rhaiis/vllm-cuda-rhel9
+  manifestHash: ""
+  tag: ""
+
+replicas: 1
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 3
+  wva:
+    keda:
+      pollingInterval: 5
+      cooldownPeriod: 30
+
+model:
+  name: qwen3-8b
+  uri: oci://registry.redhat.io/rhelai1/modelcar-qwen3-8b-fp8-dynamic:1.5
+  pvc:
+    preload: false
+    mode: ReadWriteOnce
+    size: 20Gi
+  args:
+    - --enable-reasoning
+    - --reasoning-parser=deepseek_r1
+
+resources:
+  limits:
+    cpu: "6"
+    memory: 24Gi
+    nvidia.com/gpu: "1"
+  requests:
+    cpu: "2"
+    memory: 12Gi
+    nvidia.com/gpu: "1"
+
+nodeSelector:
+  nvidia.com/gpu.present: "true"
+
+tolerations:
+  - key: nvidia.com/gpu
+    effect: NoSchedule
+    operator: Exists
+
+huggingface:
+  downloadArgs: []
+  token: ""
+
+modelType: generative
+enableAuth: true
+
+genaiAsset:
+  enabled: true
+  useCase: chat
+
+hardwareProfile:
+  enabled: true
+  name: gpu
+  namespace: redhat-ods-applications
+
+dataScienceConnection:
+  create: true
+  name: ""
+
+maas:
+  enabled: false
+  subjects:
+    groups:
+      - name: system:authenticated
+    users: []
+
+# Default simulator models for rhoai-3_4 testing (used when models: {} is overridden)
+simulatorDefaults:
+  image: ghcr.io/llm-d/llm-d-inference-sim:v0.7.1
+  gateway:
+    name: maas-default-gateway
+    namespace: openshift-ingress
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi

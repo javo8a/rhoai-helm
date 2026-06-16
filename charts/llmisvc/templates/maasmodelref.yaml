@@ -1,0 +1,12 @@
+{{- if .Values.maas.enabled }}
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSModelRef
+metadata:
+  name: {{ include "llminferenceservice.fullname" . }}
+  labels:
+    {{- include "llminferenceservice.labels" $ | nindent 4 }}
+spec:
+  modelRef:
+    kind: LLMInferenceService
+    name: {{ include "llminferenceservice.fullname" . }}
+{{- end }}

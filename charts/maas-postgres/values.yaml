@@ -1,0 +1,41 @@
+namespace: redhat-ods-applications
+
+global:
+  toolsImage: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+
+# In-cluster PostgreSQL for POC/sandbox. Disable per cluster for production day2-managed DBs.
+maas:
+  postgres:
+    deploy:
+      enabled: true
+    dbConfig:
+      secretName: maas-db-config
+      # When deploy.enabled is false, use ONE of:
+      # existingSecret: maas-db-config  — secret already provisioned outside this chart
+      # credentialsSecret: <name>       — secret with connection URL or password (see passwordKey)
+      existingSecret: ""
+      credentialsSecret: ""
+      host: ""
+      port: 5432
+      database: maas
+      user: ""
+      passwordKey: password
+      connectionUrlKey: DB_CONNECTION_URL
+      sslmode: disable
+      # Bundled deploy only (ignored when deploy.enabled is false):
+      postgresSecretName: postgres-creds
+      postgresServiceName: postgres
+
+credentials:
+  user: admin
+  password: admin123
+  database: maas
+
+storage:
+  size: 3Gi
+
+image: registry.redhat.io/rhel9/postgresql-16:latest
+
+labels:
+  app: postgres
+  purpose: poc

@@ -1,0 +1,74 @@
+{{- if and .Values.kuadrant.create .Values.authorino.overwrite }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-authorino-tls
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-authorino-tls
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["operator.authorino.kuadrant.io"]
+    resources: ["authorinos"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-authorino-tls
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-authorino-tls
+subjects:
+  - kind: ServiceAccount
+    name: patch-authorino-tls
+    namespace: {{ .Values.kuadrant.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-authorino-tls
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "5"
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: patch-authorino-tls
+      restartPolicy: Never
+      containers:
+        - name: patch-authorino-tls
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-authorino-tls.sh"]
+          env:
+            - name: KUADRANT_NAMESPACE
+              value: {{ .Values.kuadrant.namespace | quote }}
+            - name: AUTHORINO_CERT_SECRET
+              value: {{ .Values.authorino.certSecretName | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: rhcl-bootstrap-scripts
+            defaultMode: 493
+{{- end }}

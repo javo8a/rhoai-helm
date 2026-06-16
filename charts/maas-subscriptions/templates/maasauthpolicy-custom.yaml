@@ -1,0 +1,26 @@
+{{- range $name, $policy := .Values.authPolicies }}
+---
+apiVersion: maas.opendatahub.io/v1alpha1
+kind: MaaSAuthPolicy
+metadata:
+  name: {{ $name | quote }}
+  namespace: {{ $policy.namespace | default "models-as-a-service" | quote }}
+  labels:
+    migration.maas.opendatahub.io/from-tier: {{ $policy.tier | quote }}
+    migration.maas.opendatahub.io/generated: "true"
+  annotations:
+    migration.maas.opendatahub.io/original-tier: {{ $policy.tier | quote }}
+    description: {{ $policy.description | quote }}
+spec:
+  modelRefs:
+  {{- range $policy.modelRefs }}
+  - name: {{ .name | quote }}
+    namespace: {{ .namespace | quote }}
+  {{- end }}
+  subjects:
+    groups:
+    {{- range $policy.groups }}
+    - name: {{ .name | quote }}
+    {{- end }}
+    users: []
+{{- end }}

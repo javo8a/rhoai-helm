@@ -1,0 +1,73 @@
+{{- if .Values.tenantTelemetry.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-tenant-telemetry
+  namespace: models-as-a-service
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-tenant-telemetry
+  namespace: models-as-a-service
+rules:
+  - apiGroups: ["maas.opendatahub.io"]
+    resources: ["tenants"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-tenant-telemetry
+  namespace: models-as-a-service
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-tenant-telemetry
+subjects:
+  - kind: ServiceAccount
+    name: patch-tenant-telemetry
+    namespace: models-as-a-service
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patch-tenant-telemetry-script
+  namespace: models-as-a-service
+data:
+  patch-tenant-telemetry.sh: |
+{{ .Files.Get "files/patch-tenant-telemetry.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-tenant-telemetry
+  namespace: models-as-a-service
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: patch-tenant-telemetry
+      restartPolicy: Never
+      containers:
+        - name: patch-tenant-telemetry
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-tenant-telemetry.sh"]
+          env:
+            - name: MAAS_NAMESPACE
+              value: models-as-a-service
+            - name: MAAS_TENANT
+              value: default-tenant
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: patch-tenant-telemetry-script
+            defaultMode: 493
+{{- end }}

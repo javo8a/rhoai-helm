@@ -1,0 +1,58 @@
+{{- if .Values.consolePlugin.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: enable-console-plugin
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "rhcl.fullname" . }}-enable-console-plugin
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-admin
+subjects:
+  - kind: ServiceAccount
+    name: enable-console-plugin
+    namespace: {{ .Values.kuadrant.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: enable-console-plugin
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      serviceAccountName: enable-console-plugin
+      restartPolicy: Never
+      containers:
+        - name: enable-console-plugin
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/enable-console-plugin.sh"]
+          env:
+            - name: CONSOLE_PLUGIN
+              value: {{ .Values.consolePlugin.name | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: rhcl-bootstrap-scripts
+            defaultMode: 493
+{{- end }}

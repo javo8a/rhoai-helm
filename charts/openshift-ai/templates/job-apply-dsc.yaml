@@ -1,0 +1,89 @@
+{{- if .Values.dataScienceCluster.create }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apply-dsc
+  namespace: redhat-ods-applications
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apply-dsc
+rules:
+  - apiGroups: ["datasciencecluster.opendatahub.io"]
+    resources: ["datascienceclusters"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apply-dsc
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: apply-dsc
+subjects:
+  - kind: ServiceAccount
+    name: apply-dsc
+    namespace: redhat-ods-applications
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-dsc
+  namespace: redhat-ods-applications
+data:
+  dsc.yaml: |
+    ---
+    apiVersion: datasciencecluster.opendatahub.io/{{ .Values.dataScienceCluster.version }}
+    kind: DataScienceCluster
+    metadata:
+      name: default-dsc
+    {{- if .Values.dataScienceCluster.components }}
+    spec:
+      components:
+        {{- toYaml .Values.dataScienceCluster.components | nindent 8 }}
+    {{- else }}
+    spec: {}
+    {{- end }}
+  apply-dsc.sh: |
+{{ .Files.Get "files/apply-dsc.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-dsc
+  namespace: redhat-ods-applications
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: apply-dsc
+      restartPolicy: Never
+      containers:
+        - name: apply-dsc
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/apply-dsc.sh"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: config
+          configMap:
+            name: apply-dsc
+        - name: scripts
+          configMap:
+            name: apply-dsc
+            items:
+              - key: apply-dsc.sh
+                path: apply-dsc.sh
+            defaultMode: 493
+{{- end }}

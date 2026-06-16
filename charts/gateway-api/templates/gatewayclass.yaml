@@ -1,0 +1,9 @@
+{{- range $name, $gc := .Values.gatewayClasses }}
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: {{ $name }}
+spec:
+  controllerName: {{ $gc.controllerName | default "openshift.io/gateway-controller/v1" }}
+{{- end }}

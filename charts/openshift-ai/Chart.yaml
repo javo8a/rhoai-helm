@@ -1,0 +1,15 @@
+---
+apiVersion: v2
+name: openshift-ai
+description: >
+  A helm chart to deploy OpenShift AI and manage DataScienceClusters
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+
+dependencies:
+  - name: install-operators
+    version: 0.1.0
+    repository: file://../install-operators
+    alias: install-rhoai
+    condition: install-rhoai.enabled

@@ -1,0 +1,77 @@
+{{- if .Values.dashboardRestart.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: restart-rhods-dashboard
+  namespace: redhat-ods-applications
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: restart-rhods-dashboard
+  namespace: redhat-ods-applications
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: restart-rhods-dashboard
+  namespace: redhat-ods-applications
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: restart-rhods-dashboard
+subjects:
+  - kind: ServiceAccount
+    name: restart-rhods-dashboard
+    namespace: redhat-ods-applications
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: restart-rhods-dashboard-script
+  namespace: redhat-ods-applications
+data:
+  restart-dashboard.sh: |
+{{ .Files.Get "files/restart-dashboard.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restart-rhods-dashboard
+  namespace: redhat-ods-applications
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "3"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: restart-rhods-dashboard
+      restartPolicy: Never
+      containers:
+        - name: restart-rhods-dashboard
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/restart-dashboard.sh"]
+          env:
+            - name: DASHBOARD_NAMESPACE
+              value: redhat-ods-applications
+            - name: DASHBOARD_DEPLOYMENT
+              value: {{ .Values.dashboardRestart.deploymentName | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: restart-rhods-dashboard-script
+            defaultMode: 493
+{{- end }}

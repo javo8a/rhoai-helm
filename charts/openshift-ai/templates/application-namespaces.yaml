@@ -1,0 +1,17 @@
+{{- with .Values.dataScienceClusterInitialization }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .applicationsNamespace }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-10"
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ .monitoring.namespace }}
+  annotations:
+    helm.sh/hook: pre-install
+    helm.sh/hook-weight: "-10"
+{{- end }}

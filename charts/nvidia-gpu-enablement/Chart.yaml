@@ -1,0 +1,17 @@
+---
+apiVersion: v2
+name: nvidia-gpu-enablement
+description: >
+  A helm chart to manage deploying the NFD and Nvidia GPU Operators,
+  configuring the ClusterPolicy and enabling the DCGM Exporter Dashboard
+  in OpenShift
+type: application
+version: 0.1.0
+appVersion: 0.1.0
+
+dependencies:
+  - name: install-operators
+    version: 0.1.0
+    repository: file://../install-operators
+    alias: install-nvidia-operators
+    condition: install-nvidia-operators.enabled

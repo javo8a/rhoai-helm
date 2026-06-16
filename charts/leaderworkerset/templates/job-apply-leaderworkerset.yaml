@@ -1,0 +1,83 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: apply-leaderworkerset
+  namespace: openshift-lws-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: apply-leaderworkerset
+rules:
+  - apiGroups: ["operator.openshift.io"]
+    resources: ["leaderworkersetoperators"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: apply-leaderworkerset
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: apply-leaderworkerset
+subjects:
+  - kind: ServiceAccount
+    name: apply-leaderworkerset
+    namespace: openshift-lws-operator
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: apply-leaderworkerset
+  namespace: openshift-lws-operator
+data:
+  leaderworkerset.yaml: |
+    ---
+    apiVersion: operator.openshift.io/v1
+    kind: LeaderWorkerSetOperator
+    metadata:
+      name: cluster
+    {{- with .Values.spec }}
+    spec:
+      {{- toYaml . | nindent 6 }}
+    {{- end }}
+  apply-leaderworkerset.sh: |
+{{ .Files.Get "files/apply-leaderworkerset.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: apply-leaderworkerset
+  namespace: openshift-lws-operator
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "1"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: apply-leaderworkerset
+      restartPolicy: Never
+      containers:
+        - name: apply-leaderworkerset
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/apply-leaderworkerset.sh"]
+          volumeMounts:
+            - name: config
+              mountPath: /config
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: config
+          configMap:
+            name: apply-leaderworkerset
+        - name: scripts
+          configMap:
+            name: apply-leaderworkerset
+            items:
+              - key: apply-leaderworkerset.sh
+                path: apply-leaderworkerset.sh
+            defaultMode: 493

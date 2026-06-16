@@ -1,0 +1,30 @@
+{{- if .Values.maasAuthorinoNetworkPolicy.enabled }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: maas-authorino-allow
+  namespace: redhat-ods-applications
+  labels:
+    app.opendatahub.io/modelsasservice: "true"
+    app.kubernetes.io/part-of: models-as-a-service
+    app.kubernetes.io/component: networking
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/part-of: models-as-a-service
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: In
+                values:
+                  - kuadrant-system
+                  - openshift-operators
+          podSelector:
+            matchLabels:
+              authorino-resource: authorino
+{{- end }}

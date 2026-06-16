@@ -1,0 +1,36 @@
+{{- if .Values.kuadrant.create }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: restart-kuadrant-operator
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "4"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-delete-policy: before-hook-creation
+    helm.sh/hook-weight: "4"
+spec:
+  backoffLimit: 4
+  template:
+    spec:
+      serviceAccountName: restart-kuadrant-operator
+      restartPolicy: Never
+      containers:
+        - name: restart-kuadrant-operator
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/restart-kuadrant-operator.sh"]
+          env:
+            - name: KUADRANT_NAMESPACE
+              value: {{ .Values.kuadrant.namespace | quote }}
+          volumeMounts:
+            - name: restart-kuadrant-operator-script
+              mountPath: /scripts
+      volumes:
+        - name: restart-kuadrant-operator-script
+          configMap:
+            name: restart-kuadrant-operator-script
+            defaultMode: 493
+{{- end }}

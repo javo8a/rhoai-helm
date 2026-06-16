@@ -1,0 +1,14 @@
+---
+apiVersion: v2
+name: observability-operators
+description: Tempo, Cluster Observability, and OpenTelemetry operator subscriptions
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: install-operators
+    version: 0.1.0
+    repository: file://../install-operators
+    alias: install-observability
+    condition: install-observability.enabled
