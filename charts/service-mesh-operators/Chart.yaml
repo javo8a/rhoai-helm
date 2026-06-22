@@ -1,0 +1,14 @@
+---
+apiVersion: v2
+name: service-mesh-operators
+description: OpenShift Service Mesh 3 operator subscription
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: install-operators
+    version: 0.1.0
+    repository: file://../install-operators
+    alias: install-service-mesh
+    condition: install-service-mesh.enabled

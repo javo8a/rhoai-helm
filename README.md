@@ -29,6 +29,7 @@ rhoai-3_4-helm/
 | 2    | `nvidia-gpu-enablement`   | NFD + NVIDIA GPU operator; instances via post-install Jobs                          |
 | 2    | `leaderworkerset`         | Leader Worker Set operator; instance via post-install Job                             |
 | 2    | `rhcl`                    | Red Hat Connectivity Link operator; Kuadrant via post-install Job                     |
+| 3    | `service-mesh-operators`  | OpenShift Service Mesh 3 operator (pinned `servicemeshoperator3.v3.3.3`)              |
 | 3    | `gateway-api`             | GatewayClass + maas-default-gateway                                                   |
 | 4    | `openshift-ai`            | RHOAI operator; DSC/DSCI and dashboard config via post-install Jobs                   |
 | 5    | `maas-postgres`           | Optional in-cluster Postgres + `maas-db-config` for MaaS API                          |
@@ -54,7 +55,7 @@ Edit platform overrides under `clusters/mycluster.mydomain.com/platform/values/`
 ### 2. Update chart dependencies
 
 ```bash
-for c in cert-manager nvidia-gpu-enablement rhcl leaderworkerset openshift-ai observability-operators; do
+for c in cert-manager nvidia-gpu-enablement rhcl leaderworkerset openshift-ai observability-operators service-mesh-operators; do
   (cd charts/$c && helm dependency update)
 done
 ```
@@ -80,7 +81,9 @@ helm upgrade --install leaderworkerset $CHARTS/leaderworkerset -n openshift-lws-
 helm upgrade --install rhcl $CHARTS/rhcl -n kuadrant-system --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/rhcl/values.yaml
 
-# Wave 3
+# Wave 3 (wait for servicemeshoperator3 CSV Succeeded before gateway-api)
+helm upgrade --install service-mesh-operators $CHARTS/service-mesh-operators -n openshift-operators --create-namespace \
+  -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/service-mesh-operators/values.yaml
 helm upgrade --install gateway-api $CHARTS/gateway-api -n openshift-ingress \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/gateway-api/values.yaml
 
@@ -121,11 +124,18 @@ If using an external database (`maas.postgres.deploy.enabled: false`), provision
 
 Before installing workload charts (waves 7–8), confirm:
 
+- [ ] `servicemeshoperator3.v3.3.3` CSV is `Succeeded` in `openshift-operators`
 - [ ] `maas-default-gateway` is programmed in `openshift-ingress`
 - [ ] DataScienceCluster and RHOAI dashboard are ready (MaaS may stay NotReady until `maas-db-config` exists — see above)
 - [ ] `maas-controller` Kuadrant policies exist
 - [ ] `maas-db-config` secret exists (from wave 5 in-cluster Postgres, external credentials, or day2 provisioning)
 - [ ] GPU nodes are labeled if deploying GPU models (`nvidia.com/gpu.present=true`)
+
+### Service Mesh 3 and OpenShift AI coexistence
+
+Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3.3`) with a pinned CSV — independent of RHOAI's operator dependency chain. When wave 4 applies the DataScienceCluster, RHOAI may still provision **Service Mesh 2** resources (for example a `ServiceMeshControlPlane` in `istio-system`). Both meshes can coexist on one cluster when SM3 uses a separate control-plane namespace and `discoverySelectors`; see [OpenShift AI + Service Mesh 3 on one cluster](https://developers.redhat.com/articles/2025/07/16/how-deploy-openshift-ai-service-mesh-3-one-cluster#testing_and_validation).
+
+This chart does **not** deploy an `Istio` control plane or Kiali operator. Tempo and OpenTelemetry are installed in wave 1 (`observability-operators`). Deploy an `Istio` CR separately if your cluster requires an SM3 data plane beyond the operator subscription.
 
 ## Value Layering
 
@@ -245,7 +255,7 @@ Post-install Jobs use the cluster `toolsImage` (must include `oc` and `jq`) and 
 | Chart                                                                                                                                                   | Source                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `install-operators`, `cert-manager`, `nvidia-gpu-enablement`, `leaderworkerset`, `rhcl`, `gateway-api`, `openshift-ai`, `llmisvc`, `maas-subscriptions` | Adapted from [openshift-setup](https://github.com/jharmison-redhat/openshift-setup) |
-| `maas-postgres`, `maas-controller`, `observability-operators`                                                                                           | Created from `[rhoai-3_4/](../rhoai-3_4/)` Kustomize manifests                      |
+| `maas-postgres`, `maas-controller`, `observability-operators`, `service-mesh-operators`                                                                 | Created from `[rhoai-3_4/](../rhoai-3_4/)` Kustomize manifests or repo additions    |
 
 
 ## Validation

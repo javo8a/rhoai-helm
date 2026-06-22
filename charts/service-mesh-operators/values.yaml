@@ -1,0 +1,11 @@
+global:
+  toolsImage: image-registry.openshift-image-registry.svc:5000/openshift/tools:latest
+
+install-service-mesh:
+  enabled: true
+  operators:
+    servicemeshoperator3:
+      channel: stable-3.3
+      installPlanApproval: Manual
+      namespace: openshift-operators
+      startingCSV: servicemeshoperator3.v3.3.3
