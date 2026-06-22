@@ -133,7 +133,7 @@ Before installing workload charts (waves 7–8), confirm:
 
 ### Service Mesh 3 and OpenShift AI coexistence
 
-Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3.3`) with a pinned CSV — independent of RHOAI's operator dependency chain. When wave 4 applies the DataScienceCluster, RHOAI may still provision **Service Mesh 2** resources (for example a `ServiceMeshControlPlane` in `istio-system`). Both meshes can coexist on one cluster when SM3 uses a separate control-plane namespace and `discoverySelectors`; see [OpenShift AI + Service Mesh 3 on one cluster](https://developers.redhat.com/articles/2025/07/16/how-deploy-openshift-ai-service-mesh-3-one-cluster#testing_and_validation).
+Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3.3`) with a pinned CSV — independent of RHOAI's operator dependency chain. Wave 4 (`openshift-ai`) sets `serviceMesh.managementState: Removed` on the DSCInitialization so RHOAI does not auto-install or manage Service Mesh; MaaS and llm-d use Gateway API and RawDeployment instead. See [OpenShift AI + Service Mesh 3 on one cluster](https://developers.redhat.com/articles/2025/07/16/how-deploy-openshift-ai-service-mesh-3-one-cluster#testing_and_validation).
 
 This chart does **not** deploy an `Istio` control plane or Kiali operator. Tempo and OpenTelemetry are installed in wave 1 (`observability-operators`). Deploy an `Istio` CR separately if your cluster requires an SM3 data plane beyond the operator subscription.
 
