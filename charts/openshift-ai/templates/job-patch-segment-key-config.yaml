@@ -1,0 +1,79 @@
+{{- if not .Values.enableUserTelemetry }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-segment-key-config
+  namespace: redhat-ods-applications
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-segment-key-config
+  namespace: redhat-ods-applications
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-segment-key-config
+  namespace: redhat-ods-applications
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-segment-key-config
+subjects:
+  - kind: ServiceAccount
+    name: patch-segment-key-config
+    namespace: redhat-ods-applications
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patch-segment-key-config-script
+  namespace: redhat-ods-applications
+data:
+  patch-segment-key-config.sh: |
+{{ .Files.Get "files/patch-segment-key-config.sh" | indent 4 }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-segment-key-config
+  namespace: redhat-ods-applications
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "4"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: patch-segment-key-config
+      restartPolicy: Never
+      containers:
+        - name: patch-segment-key-config
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-segment-key-config.sh"]
+          env:
+            - name: ODS_NAMESPACE
+              value: redhat-ods-applications
+            - name: SEGMENT_KEY_CONFIGMAP
+              value: odh-segment-key-config
+            - name: SEGMENT_KEY_ENABLED
+              value: "false"
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: patch-segment-key-config-script
+            defaultMode: 493
+{{- end }}
