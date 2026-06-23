@@ -31,14 +31,14 @@ rhoai-3_4-helm/
 | 2    | `rhcl`                    | Red Hat Connectivity Link operator; Kuadrant via post-install Job                     |
 | 3    | `service-mesh-operators`  | OpenShift Service Mesh 3 operator (pinned `servicemeshoperator3.v3.3.3`)              |
 | 3    | `gateway-api`             | GatewayClass + maas-default-gateway                                                   |
-| 4    | `openshift-ai`            | RHOAI operator; DSC/DSCI and dashboard config via post-install Jobs                   |
-| 5    | `maas-postgres`           | Optional in-cluster Postgres + `maas-db-config` for MaaS API                          |
-| 6    | `maas-controller`         | Kuadrant rate limit policies and Limitador metrics (CRDs/RBAC/deployment from wave 4) |
+| 4    | `maas-postgres`           | Optional in-cluster Postgres + `maas-db-config` for MaaS API                          |
+| 5    | `openshift-ai`            | RHOAI operator; DSC/DSCI and dashboard config via post-install Jobs                   |
+| 6    | `maas-controller`         | Kuadrant rate limit policies and Limitador metrics (CRDs/RBAC/deployment from openshift-ai) |
 | 7    | `llmisvc`                 | LLMInferenceService models                                                            |
 | 8    | `maas-subscriptions`      | MaaSModelRef, MaaSAuthPolicy, MaaSSubscription                                        |
 
 
-Wave 4 before wave 5 matches the Kustomize/bootstrap overlay order (`04-rhoai` then `06-postgres`). The DataScienceCluster `modelsAsService` component expects a `maas-db-config` secret that wave 5 creates — see [Expected conditions between waves 4 and 5](#expected-conditions-between-waves-4-and-5) below.
+Wave 4 (`maas-postgres`) runs before wave 5 (`openshift-ai`) so the `maas-db-config` secret exists when the DataScienceCluster enables MaaS — see [Prerequisites for wave 5](#prerequisites-for-wave-5) below.
 
 ### 1. Configure your cluster
 
@@ -88,12 +88,12 @@ helm upgrade --install gateway-api $CHARTS/gateway-api -n openshift-ingress \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/gateway-api/values.yaml
 
 # Wave 4
-helm upgrade --install openshift-ai $CHARTS/openshift-ai -n redhat-ods-operator --create-namespace \
-  -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/openshift-ai/values.yaml
+helm upgrade --install maas-postgres $CHARTS/maas-postgres -n redhat-ods-applications --create-namespace \
+  -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/maas-postgres/values.yaml
 
 # Wave 5
-helm upgrade --install maas-postgres $CHARTS/maas-postgres -n redhat-ods-applications \
-  -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/maas-postgres/values.yaml
+helm upgrade --install openshift-ai $CHARTS/openshift-ai -n redhat-ods-operator --create-namespace \
+  -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/openshift-ai/values.yaml
 
 # Wave 6
 helm upgrade --install maas-controller $CHARTS/maas-controller -n redhat-ods-applications \
@@ -108,17 +108,15 @@ helm upgrade --install maas-subscriptions $CHARTS/maas-subscriptions -n models-a
 
 Wait for each wave's operators and post-install Jobs to complete before proceeding to the next wave.
 
-### Expected conditions between waves 4 and 5
+### Prerequisites for wave 5
 
-After wave 4 (`openshift-ai`), the DataScienceCluster may report `ModelsAsServiceReady: False` with:
+Before wave 5 (`openshift-ai`), the `maas-db-config` secret must exist in `redhat-ods-applications`. Wave 4 (`maas-postgres`) creates it when `maas.postgres.deploy.enabled: true` (wait for the `create-maas-db-config` Job to complete). With an external database (`maas.postgres.deploy.enabled: false`), run wave 4 with `existingSecret` or `credentialsSecret` configured, or provision `maas-db-config` out of band before proceeding.
+
+If `maas-db-config` is missing when wave 5 runs, the DataScienceCluster will report `ModelsAsServiceReady: False` with:
 
 ```
 database Secret 'maas-db-config' not found in namespace 'redhat-ods-applications'
 ```
-
-This is **expected** until wave 5 (`maas-postgres`) runs. Wave 4 enables MaaS in the DSC; wave 5 provisions PostgreSQL (when `maas.postgres.deploy.enabled: true`) and creates the `maas-db-config` secret. Proceed to wave 5 — do not treat this as a failed wave 4 install.
-
-If using an external database (`maas.postgres.deploy.enabled: false`), provision `maas-db-config` before wave 4, or accept the same transient condition until the secret exists.
 
 ### Platform readiness checklist
 
@@ -126,14 +124,14 @@ Before installing workload charts (waves 7–8), confirm:
 
 - [ ] `servicemeshoperator3.v3.3.3` CSV is `Succeeded` in `openshift-operators`
 - [ ] `maas-default-gateway` is programmed in `openshift-ingress`
-- [ ] DataScienceCluster and RHOAI dashboard are ready (MaaS may stay NotReady until `maas-db-config` exists — see above)
+- [ ] DataScienceCluster and RHOAI dashboard are ready
 - [ ] `maas-controller` Kuadrant policies exist
-- [ ] `maas-db-config` secret exists (from wave 5 in-cluster Postgres, external credentials, or day2 provisioning)
+- [ ] `maas-db-config` secret exists (from wave 4 in-cluster Postgres, external credentials, or day2 provisioning)
 - [ ] GPU nodes are labeled if deploying GPU models (`nvidia.com/gpu.present=true`)
 
 ### Service Mesh 3 and OpenShift AI coexistence
 
-Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3.3`) with a pinned CSV — independent of RHOAI's operator dependency chain. Wave 4 (`openshift-ai`) sets `serviceMesh.managementState: Removed` on the DSCInitialization so RHOAI does not auto-install or manage Service Mesh; MaaS and llm-d use Gateway API and RawDeployment instead. See [OpenShift AI + Service Mesh 3 on one cluster](https://developers.redhat.com/articles/2025/07/16/how-deploy-openshift-ai-service-mesh-3-one-cluster#testing_and_validation).
+Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3.3`) with a pinned CSV — independent of RHOAI's operator dependency chain. Wave 5 (`openshift-ai`) sets `serviceMesh.managementState: Removed` on the DSCInitialization so RHOAI does not auto-install or manage Service Mesh; MaaS and llm-d use Gateway API and RawDeployment instead. See [OpenShift AI + Service Mesh 3 on one cluster](https://developers.redhat.com/articles/2025/07/16/how-deploy-openshift-ai-service-mesh-3-one-cluster#testing_and_validation).
 
 This chart does **not** deploy an `Istio` control plane or Kiali operator. Tempo and OpenTelemetry are installed in wave 1 (`observability-operators`). Deploy an `Istio` CR separately if your cluster requires an SM3 data plane beyond the operator subscription.
 
