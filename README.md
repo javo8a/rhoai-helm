@@ -70,7 +70,8 @@ CHARTS=charts
 # Wave 1 - for RHDP cluster add --take-ownership to the cert-manager install
 helm upgrade --install cert-manager $CHARTS/cert-manager -n cert-manager-operator --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/cert-manager/values.yaml
-helm upgrade --install observability-operators $CHARTS/observability-operators -n openshift-operators --create-namespace \
+# openshift-operators is a platform namespace; do not pass --create-namespace
+helm upgrade --install observability-operators $CHARTS/observability-operators -n openshift-operators \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/observability-operators/values.yaml
 
 # Wave 2 (wait for operators to be ready)
@@ -82,7 +83,7 @@ helm upgrade --install rhcl $CHARTS/rhcl -n kuadrant-system --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/rhcl/values.yaml
 
 # Wave 3 (wait for servicemeshoperator3 CSV Succeeded before gateway-api)
-helm upgrade --install service-mesh-operators $CHARTS/service-mesh-operators -n openshift-operators --create-namespace \
+helm upgrade --install service-mesh-operators $CHARTS/service-mesh-operators -n openshift-operators \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/service-mesh-operators/values.yaml
 helm upgrade --install gateway-api $CHARTS/gateway-api -n openshift-ingress \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/gateway-api/values.yaml

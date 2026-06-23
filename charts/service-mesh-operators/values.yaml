@@ -7,5 +7,5 @@ install-service-mesh:
     servicemeshoperator3:
       channel: stable-3.3
       installPlanApproval: Manual
-      namespace: openshift-operators
+      # Omit namespace; defaults to openshift-operators without creating the NS.
       startingCSV: servicemeshoperator3.v3.3.3

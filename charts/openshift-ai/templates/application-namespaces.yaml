@@ -1,12 +1,7 @@
 {{- with .Values.dataScienceClusterInitialization }}
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: {{ .applicationsNamespace }}
-  annotations:
-    helm.sh/hook: pre-install
-    helm.sh/hook-weight: "-10"
----
+{{- /* applicationsNamespace is created by wave 4 (maas-postgres --create-namespace) or by the
+     DSCInitialization operator; do not create it here — a pre-install Namespace hook would
+     fight Helm ownership with the maas-postgres release and leave the ns Terminating. */ -}}
 apiVersion: v1
 kind: Namespace
 metadata:
