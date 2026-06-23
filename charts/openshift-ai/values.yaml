@@ -79,8 +79,6 @@ dataScienceCluster:
 
 dataScienceClusterInitialization:
   applicationsNamespace: redhat-ods-applications
-  serviceMesh:
-    managementState: Removed
   monitoring:
     managementState: Managed
     namespace: redhat-ods-monitoring
