@@ -21,7 +21,7 @@ model:
     - --language-model-only
 
 hardwareProfile:
-  name: l40s
+  name: gpu-profile
 
 resources:
   limits:

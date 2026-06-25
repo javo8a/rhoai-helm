@@ -105,6 +105,16 @@ helm upgrade --install llmisvc $CHARTS/llmisvc -n ai-models --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/values/llmisvc/values.yaml
 helm upgrade --install maas-subscriptions $CHARTS/maas-subscriptions -n models-as-a-service --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/values/maas-subscriptions/values.yaml
+
+# Wave 9 Optional - add additional Inference Servers to the `ai-models` namespace
+
+# Adds gpt-oss-20b
+helm upgrade --install llmisvc-gpt-oss-20b $CHARTS/llmisvc \
+  -n ai-models --set namespace.create=false \
+  -f $CLUSTER/cluster.yaml -f $CHARTS/llmisvc/gpt-oss-20b-maas.yaml
+
+
+
 ```
 
 Wait for each wave's operators and post-install Jobs to complete before proceeding to the next wave.

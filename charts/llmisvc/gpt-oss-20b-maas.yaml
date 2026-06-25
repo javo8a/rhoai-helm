@@ -1,0 +1,31 @@
+displaynameOverride: 'GPT-OSS 20B'
+fullnameOverride: 'gpt-oss-20b'
+
+genaiAsset:
+  description: 'OpenAI’s open-weight models designed for powerful reasoning, agentic tasks, and versatile developer use cases.'
+  useCase: 'Reasoning, agentic tasks, and versatile developer use cases.'
+
+model:
+  name: gpt-oss-20b
+  uri: oci://registry.redhat.io/rhelai1/modelcar-gpt-oss-20b:1.5
+  args:
+    - --max-model-len=100000
+    - --tensor-parallel-size=1
+    - --pipeline-parallel-size=1
+
+hardwareProfile:
+  name: gpu-profile
+  namespace: redhat-ods-applications
+
+resources:
+  limits:
+    cpu: "4"
+    memory: 32Gi
+    nvidia.com/gpu: "1"
+  requests:
+    cpu: "2"
+    memory: 16Gi
+    nvidia.com/gpu: "1"
+
+maas:
+  enabled: true

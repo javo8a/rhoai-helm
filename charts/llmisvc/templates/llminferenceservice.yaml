@@ -10,6 +10,7 @@ metadata:
     {{- with .Values.genaiAsset }}
     {{- if .enabled }}
     opendatahub.io/genai-use-case: {{ quote .useCase }}
+    openshift.io/description: {{ quote .description }}
     {{- end }}
     {{- end }}
     {{- if and .Values.enableAuth (not .Values.maas.enabled) }}
