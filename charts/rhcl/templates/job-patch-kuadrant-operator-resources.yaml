@@ -1,0 +1,85 @@
+{{- if and .Values.kuadrant.create .Values.kuadrantOperator.resourcesPatch.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-kuadrant-operator-resources
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-kuadrant-operator-resources
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["clusterserviceversions"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-kuadrant-operator-resources
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-kuadrant-operator-resources
+subjects:
+  - kind: ServiceAccount
+    name: patch-kuadrant-operator-resources
+    namespace: {{ .Values.kuadrant.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-kuadrant-operator-resources
+  namespace: {{ .Values.kuadrant.namespace }}
+  labels:
+    {{- include "rhcl.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 6
+  template:
+    spec:
+      serviceAccountName: patch-kuadrant-operator-resources
+      restartPolicy: Never
+      containers:
+        - name: patch-kuadrant-operator-resources
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-kuadrant-operator-resources.sh"]
+          env:
+            - name: KUADRANT_NAMESPACE
+              value: {{ .Values.kuadrant.namespace | quote }}
+            - name: RHCL_CSV
+              value: {{ .Values.csvPatch.csvName | quote }}
+            - name: CONTROLLER_MEMORY_REQUEST
+              value: {{ .Values.kuadrantOperator.resourcesPatch.requests.memory | quote }}
+            - name: CONTROLLER_MEMORY_LIMIT
+              value: {{ .Values.kuadrantOperator.resourcesPatch.limits.memory | quote }}
+            - name: CONTROLLER_CPU_REQUEST
+              value: {{ .Values.kuadrantOperator.resourcesPatch.requests.cpu | quote }}
+            - name: CONTROLLER_CPU_LIMIT
+              value: {{ .Values.kuadrantOperator.resourcesPatch.limits.cpu | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: rhcl-bootstrap-scripts
+            defaultMode: 493
+{{- end }}

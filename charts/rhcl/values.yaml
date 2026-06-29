@@ -44,6 +44,18 @@ csvPatch:
   csvName: rhcl-operator.v1.3.4
   gatewayControllerNames: "istio.io/gateway-controller,openshift.io/gateway-controller/v1"
 
+# kuadrant-operator-controller-manager defaults to 200Mi request / 300Mi limit in the CSV;
+# increase when the controller is OOMKilled during startup or reconciliation.
+kuadrantOperator:
+  resourcesPatch:
+    enabled: true
+    requests:
+      memory: 3Gi
+      cpu: 200m
+    limits:
+      memory: 5Gi
+      cpu: 500m
+
 # bootstrap.sh: enable kuadrant-console-plugin
 consolePlugin:
   enabled: true
