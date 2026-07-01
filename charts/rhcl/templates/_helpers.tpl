@@ -49,3 +49,20 @@ Selector labels
 app.kubernetes.io/name: {{ include "rhcl.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+Kuadrant operator controller resource patch settings with chart defaults.
+Cluster values may omit kuadrantOperator entirely or only override nested fields.
+*/}}
+{{- define "rhcl.kuadrantOperatorResourcesPatch" -}}
+{{- $configured := (.Values.kuadrantOperator | default dict).resourcesPatch | default dict }}
+{{- $requests := $configured.requests | default dict }}
+{{- $limits := $configured.limits | default dict }}
+enabled: {{ default true $configured.enabled }}
+requests:
+  memory: {{ default "3Gi" $requests.memory }}
+  cpu: {{ default "200m" $requests.cpu }}
+limits:
+  memory: {{ default "5Gi" $limits.memory }}
+  cpu: {{ default "500m" $limits.cpu }}
+{{- end }}
