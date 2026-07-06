@@ -102,9 +102,9 @@ dataScienceClusterInitialization:
 clusterMonitoring:
   enabled: true
 
-# When modelsAsService is Managed on the DataScienceCluster, the in-cluster
-# maas-controller reconciles maas-authorino-allow; leave disabled to avoid Helm
-# SSA conflicts with the operator-owned podSelector and labels.
+# When modelsAsService is Managed on the DataScienceCluster, the MaaS operator
+# reconciles maas-authorino-allow; leave disabled to avoid Helm SSA conflicts
+# with the operator-owned podSelector and labels.
 maasAuthorinoNetworkPolicy:
   enabled: false
 

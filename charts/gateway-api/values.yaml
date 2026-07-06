@@ -49,3 +49,20 @@ gateways:
               name: cert-manager-ingress-cert
         certificate:
           create: false
+
+# Optional OpenShift Route for external MaaS access (HAProxy layer).
+# Disabled by default — enable when you want Helm to manage the Route instead of creating it manually.
+# Uses streaming-friendly HAProxy annotations (long timeout, forwarded headers).
+route:
+  create: false
+  name: maas-default-gateway
+  hostname: ""  # default: maas.apps.{cluster.name}.{cluster.baseDomain}
+  # Service created by the OpenShift Gateway controller; override if auto-discovery differs.
+  serviceName: maas-default-gateway-openshift-default
+  targetPort: 80
+  timeout: 10m
+  forwardedHeaders: append
+  annotations: {}
+  tls:
+    termination: edge
+    insecureEdgeTerminationPolicy: Redirect

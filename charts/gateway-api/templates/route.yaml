@@ -1,0 +1,30 @@
+{{- $gw := index .Values.gateways "maas-default-gateway" -}}
+{{- if and $gw .Values.route.create }}
+{{- $host := printf "maas.apps.%s.%s" .Values.global.cluster.name .Values.global.cluster.baseDomain }}
+{{- $ns := $gw.namespace | default "openshift-ingress" }}
+{{- $svcName := .Values.route.serviceName | default "maas-default-gateway-openshift-default" }}
+---
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: {{ .Values.route.name }}
+  namespace: {{ $ns }}
+  annotations:
+    haproxy.router.openshift.io/timeout: {{ .Values.route.timeout | quote }}
+    haproxy.router.openshift.io/set-forwarded-headers: {{ .Values.route.forwardedHeaders | quote }}
+    {{- with .Values.route.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  host: {{ .Values.route.hostname | default $host }}
+  port:
+    targetPort: {{ .Values.route.targetPort }}
+  tls:
+    insecureEdgeTerminationPolicy: {{ .Values.route.tls.insecureEdgeTerminationPolicy }}
+    termination: {{ .Values.route.tls.termination }}
+  to:
+    kind: Service
+    name: {{ $svcName }}
+    weight: 100
+  wildcardPolicy: None
+{{- end }}

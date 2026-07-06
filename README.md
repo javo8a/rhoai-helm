@@ -12,8 +12,8 @@ rhoai-3_4-helm/
 ├── clusters/                       # Per-cluster values
 │   └── example.cluster.opentlc.com/
 │       ├── cluster.yaml            # Global cluster name/domain/toolsImage
-│       ├── platform/values/{app}/  # Platform chart overrides (waves 1–6)
-│       └── values/{app}/           # Workload chart overrides (waves 7–8)
+│       ├── platform/values/{app}/  # Platform chart overrides (waves 1–5)
+│       └── values/{app}/           # Workload chart overrides (waves 6–7)
 └── HELM.md
 ```
 
@@ -33,9 +33,8 @@ rhoai-3_4-helm/
 | 3    | `gateway-api`             | GatewayClass + maas-default-gateway                                                   |
 | 4    | `maas-postgres`           | Optional in-cluster Postgres + `maas-db-config` for MaaS API                          |
 | 5    | `openshift-ai`            | RHOAI operator; DSC/DSCI and dashboard config via post-install Jobs                   |
-| 6    | `maas-controller`         | Kuadrant rate limit policies and Limitador metrics (CRDs/RBAC/deployment from openshift-ai) |
-| 7    | `llmisvc`                 | LLMInferenceService models                                                            |
-| 8    | `maas-subscriptions`      | MaaSModelRef, MaaSAuthPolicy, MaaSSubscription                                        |
+| 6    | `llmisvc`                 | LLMInferenceService models                                                            |
+| 7    | `maas-subscriptions`      | MaaSModelRef, MaaSAuthPolicy, MaaSSubscription                                        |
 
 
 Wave 4 (`maas-postgres`) runs before wave 5 (`openshift-ai`) so the `maas-db-config` secret exists when the DataScienceCluster enables MaaS — see [Prerequisites for wave 5](#prerequisites-for-wave-5) below.
@@ -96,17 +95,13 @@ helm upgrade --install maas-postgres $CHARTS/maas-postgres -n redhat-ods-applica
 helm upgrade --install openshift-ai $CHARTS/openshift-ai -n redhat-ods-operator --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/openshift-ai/values.yaml
 
-# Wave 6
-helm upgrade --install maas-controller $CHARTS/maas-controller -n redhat-ods-applications \
-  -f $CLUSTER/cluster.yaml -f $CLUSTER/platform/values/maas-controller/values.yaml
-
-# Waves 7–8 (workloads)
+# Waves 6–7 (workloads)
 helm upgrade --install llmisvc $CHARTS/llmisvc -n ai-models --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/values/llmisvc/values.yaml
 helm upgrade --install maas-subscriptions $CHARTS/maas-subscriptions -n models-as-a-service --create-namespace \
   -f $CLUSTER/cluster.yaml -f $CLUSTER/values/maas-subscriptions/values.yaml
 
-# Wave 9 Optional - add additional Inference Servers to the `ai-models` namespace
+# Wave 8 Optional - add additional Inference Servers to the `ai-models` namespace
 
 # Adds gpt-oss-20b
 helm upgrade --install llmisvc-gpt-oss-20b $CHARTS/llmisvc \
@@ -131,12 +126,11 @@ database Secret 'maas-db-config' not found in namespace 'redhat-ods-applications
 
 ### Platform readiness checklist
 
-Before installing workload charts (waves 7–8), confirm:
+Before installing workload charts (waves 6–7), confirm:
 
 - [ ] `servicemeshoperator3.v3.3.3` CSV is `Succeeded` in `openshift-operators`
 - [ ] `maas-default-gateway` is programmed in `openshift-ingress`
 - [ ] DataScienceCluster and RHOAI dashboard are ready
-- [ ] `maas-controller` Kuadrant policies exist
 - [ ] `maas-db-config` secret exists (from wave 4 in-cluster Postgres, external credentials, or day2 provisioning)
 - [ ] GPU nodes are labeled if deploying GPU models (`nvidia.com/gpu.present=true`)
 
@@ -246,7 +240,6 @@ All imperative steps from `[bootstrap.sh](../bootstrap.sh)` are encoded in the H
 | OdhDashboardConfig (MaaS dashboard flags)                   | `openshift-ai`       | Job `apply-odh-dashboard-config` (post-install; waits for CRD after DSC) |
 | Postgres deployment (optional)                              | `maas-postgres`      | `postgres.yaml` when `maas.postgres.deploy.enabled`                      |
 | `maas-db-config` secret + maas-api restart                  | `maas-postgres`      | Job `create-maas-db-config` (skipped when `existingSecret` is set)       |
-| MaaS Kuadrant policies                                      | `maas-controller`    | Policy templates                                                         |
 | Simulated LLM models                                        | `llmisvc`            | Multi-model templates                                                    |
 | MaaS subscriptions                                          | `maas-subscriptions` | Subscription templates                                                   |
 | Observability DSCI + cluster monitoring                     | `openshift-ai`       | DSCInitialization + ConfigMap                                            |
@@ -264,7 +257,7 @@ Post-install Jobs use the cluster `toolsImage` (must include `oc` and `jq`) and 
 | Chart                                                                                                                                                   | Source                                                                              |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `install-operators`, `cert-manager`, `nvidia-gpu-enablement`, `leaderworkerset`, `rhcl`, `gateway-api`, `openshift-ai`, `llmisvc`, `maas-subscriptions` | Adapted from [openshift-setup](https://github.com/jharmison-redhat/openshift-setup) |
-| `maas-postgres`, `maas-controller`, `observability-operators`, `service-mesh-operators`                                                                 | Created from `[rhoai-3_4/](../rhoai-3_4/)` Kustomize manifests or repo additions    |
+| `maas-postgres`, `observability-operators`, `service-mesh-operators`                                                                                    | Created from `[rhoai-3_4/](../rhoai-3_4/)` Kustomize manifests or repo additions    |
 
 
 ## Validation
