@@ -11,9 +11,11 @@ until oc get csv "${CSV_NAME}" -n "${NAMESPACE}" >/dev/null 2>&1; do
 done
 
 ENV_INDEX=$(oc get csv "${CSV_NAME}" -n "${NAMESPACE}" -o json | \
-  jq -r '.spec.install.spec.deployments[0].spec.template.spec.containers[0].env | map(.name) | index("ISTIO_GATEWAY_CONTROLLER_NAMES")')
+  jq -r '
+    (.spec.install.spec.deployments[0].spec.template.spec.containers[0].env | map(.name) | index("ISTIO_GATEWAY_CONTROLLER_NAMES")) as $i |
+    if $i == null then empty else ($i | tostring) end')
 
-if [ "${ENV_INDEX}" = "null" ]; then
+if [ -z "${ENV_INDEX}" ]; then
   echo "ISTIO_GATEWAY_CONTROLLER_NAMES not found in CSV ${CSV_NAME}" >&2
   exit 1
 fi

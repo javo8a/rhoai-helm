@@ -80,9 +80,11 @@ patch_csv_resources() {
   wait_for_rhcl_csv
 
   DEPLOY_IDX=$(oc get csv "${CSV_NAME}" -n "${NAMESPACE}" -o json | \
-    jq -r --arg name "${DEPLOYMENT}" '.spec.install.spec.deployments | map(.name) | index($name)')
+    jq -r --arg name "${DEPLOYMENT}" '
+      (.spec.install.spec.deployments | map(.name) | index($name)) as $i |
+      if $i == null then empty else ($i | tostring) end')
 
-  if [ "${DEPLOY_IDX}" = "null" ]; then
+  if [ -z "${DEPLOY_IDX}" ]; then
     echo "Warning: ${DEPLOYMENT} not found in CSV ${CSV_NAME}; skipping CSV patch" >&2
     return 0
   fi
@@ -107,9 +109,11 @@ patch_deployment_resources() {
     jq -c '.spec.template.spec.containers[] | select(.name == "manager") | .resources // {}')
 
   CONTAINER_IDX=$(oc get deployment "${DEPLOYMENT}" -n "${NAMESPACE}" -o json | \
-    jq -r '.spec.template.spec.containers | map(.name) | index("manager")')
+    jq -r '
+      (.spec.template.spec.containers | map(.name) | index("manager")) as $i |
+      if $i == null then empty else ($i | tostring) end')
 
-  if [ "${CONTAINER_IDX}" = "null" ]; then
+  if [ -z "${CONTAINER_IDX}" ]; then
     echo "Error: manager container not found in ${DEPLOYMENT}" >&2
     exit 1
   fi

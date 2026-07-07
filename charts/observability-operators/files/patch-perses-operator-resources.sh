@@ -36,9 +36,11 @@ resolve_container_index() {
   local idx
 
   idx=$(oc get deployment "${DEPLOYMENT}" -n "${NAMESPACE}" -o json | \
-    jq -r --arg name "${CONTAINER}" '.spec.template.spec.containers | map(.name) | index($name)')
+    jq -r --arg name "${CONTAINER}" '
+      (.spec.template.spec.containers | map(.name) | index($name)) as $i |
+      if $i == null then empty else ($i | tostring) end')
 
-  if [ "${idx}" != "null" ]; then
+  if [ -n "${idx}" ]; then
     echo "${idx}"
     return 0
   fi
