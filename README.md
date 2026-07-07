@@ -22,19 +22,19 @@ rhoai-3_4-helm/
 ## Install Order
 
 
-| Wave | Chart                     | Description                                                                           |
-| ---- | ------------------------- | ------------------------------------------------------------------------------------- |
-| 1    | `cert-manager`            | cert-manager operator                                                                 |
-| 1    | `observability-operators` | Tempo, Cluster Observability, OpenTelemetry operators                                 |
-| 2    | `nvidia-gpu-enablement`   | NFD + NVIDIA GPU operator; instances via post-install Jobs                          |
-| 2    | `leaderworkerset`         | Leader Worker Set operator; instance via post-install Job                             |
-| 2    | `rhcl`                    | Red Hat Connectivity Link operator; Kuadrant via post-install Job                     |
-| 3    | `service-mesh-operators`  | OpenShift Service Mesh 3 operator (pinned `servicemeshoperator3.v3.3.3`)              |
-| 3    | `gateway-api`             | GatewayClass + maas-default-gateway                                                   |
-| 4    | `maas-postgres`           | Optional in-cluster Postgres + `maas-db-config` for MaaS API                          |
-| 5    | `openshift-ai`            | RHOAI operator; DSC/DSCI and dashboard config via post-install Jobs                   |
-| 6    | `llmisvc`                 | LLMInferenceService models                                                            |
-| 7    | `maas-subscriptions`      | MaaSModelRef, MaaSAuthPolicy, MaaSSubscription                                        |
+| Wave | Chart                     | Description                                                              |
+| ---- | ------------------------- | ------------------------------------------------------------------------ |
+| 1    | `cert-manager`            | cert-manager operator                                                    |
+| 1    | `observability-operators` | Tempo, Cluster Observability, OpenTelemetry operators                    |
+| 2    | `nvidia-gpu-enablement`   | NFD + NVIDIA GPU operator; instances via post-install Jobs               |
+| 2    | `leaderworkerset`         | Leader Worker Set operator; instance via post-install Job                |
+| 2    | `rhcl`                    | Red Hat Connectivity Link operator; Kuadrant via post-install Job        |
+| 3    | `service-mesh-operators`  | OpenShift Service Mesh 3 operator (pinned `servicemeshoperator3.v3.3.3`) |
+| 3    | `gateway-api`             | GatewayClass + maas-default-gateway                                      |
+| 4    | `maas-postgres`           | Optional in-cluster Postgres + `maas-db-config` for MaaS API             |
+| 5    | `openshift-ai`            | RHOAI operator; DSC/DSCI and dashboard config via post-install Jobs      |
+| 6    | `llmisvc`                 | LLMInferenceService models                                               |
+| 7    | `maas-subscriptions`      | MaaSModelRef, MaaSAuthPolicy, MaaSSubscription                           |
 
 
 Wave 4 (`maas-postgres`) runs before wave 5 (`openshift-ai`) so the `maas-db-config` secret exists when the DataScienceCluster enables MaaS — see [Prerequisites for wave 5](#prerequisites-for-wave-5) below.
@@ -59,10 +59,11 @@ for c in cert-manager nvidia-gpu-enablement rhcl leaderworkerset openshift-ai ob
 done
 ```
 
+
+
 ### 3. Install in wave order
 
 ```bash
-cd rhoai-3_4-helm
 CLUSTER=clusters/example.cluster.opentlc.com
 CHARTS=charts
 
@@ -124,6 +125,8 @@ If `maas-db-config` is missing when wave 5 runs, the DataScienceCluster will rep
 database Secret 'maas-db-config' not found in namespace 'redhat-ods-applications'
 ```
 
+
+
 ### Platform readiness checklist
 
 Before installing workload charts (waves 6–7), confirm:
@@ -134,6 +137,8 @@ Before installing workload charts (waves 6–7), confirm:
 - [ ] `maas-db-config` secret exists (from wave 4 in-cluster Postgres, external credentials, or day2 provisioning)
 - [ ] GPU nodes are labeled if deploying GPU models (`nvidia.com/gpu.present=true`)
 
+
+
 ### Service Mesh 3 and OpenShift AI coexistence
 
 Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3.3`) with a pinned CSV — independent of RHOAI's operator dependency chain. Wave 5 (`openshift-ai`) sets `serviceMesh.managementState: Removed` on the DSCInitialization so RHOAI does not auto-install or manage Service Mesh; MaaS and llm-d use Gateway API and RawDeployment instead. See [OpenShift AI + Service Mesh 3 on one cluster](https://developers.redhat.com/articles/2025/07/16/how-deploy-openshift-ai-service-mesh-3-one-cluster#testing_and_validation).
@@ -141,6 +146,8 @@ Wave 3 installs the **Service Mesh 3 operator only** (`servicemeshoperator3.v3.3
 This chart does **not** deploy an `Istio` control plane or Kiali operator. Tempo and OpenTelemetry are installed in wave 1 (`observability-operators`). Deploy an `Istio` CR separately if your cluster requires an SM3 data plane beyond the operator subscription.
 
 ## Value Layering
+
+
 
 ### Platform charts
 
@@ -156,11 +163,15 @@ The gateway hostname is templated from cluster globals:
 maas.apps.{cluster.name}.{cluster.baseDomain}
 ```
 
+
+
 ### Workload charts
 
 1. `charts/{app}/values.yaml` — chart defaults
 2. `clusters/{cluster}/cluster.yaml` — global cluster settings
 3. `clusters/{cluster}/values/{app}/values.yaml` — per-app overrides
+
+
 
 ### Disconnected clusters (optional)
 
@@ -224,29 +235,29 @@ When `deploy.enabled` is `true`, the chart deploys a single-replica PostgreSQL i
 All imperative steps from `[bootstrap.sh](../bootstrap.sh)` are encoded in the Helm charts:
 
 
-| bootstrap.sh step                                           | Helm chart           | Implementation                                                           |
-| ----------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------ |
-| Kuadrant CR                                                 | `rhcl`               | Job `apply-kuadrant` (post-install; waits for operator CRD)            |
-| RHCL CSV `ISTIO_GATEWAY_CONTROLLER_NAMES` patch             | `rhcl`               | Job `patch-rhcl-csv`                                                     |
-| Enable `kuadrant-console-plugin`                            | `rhcl`               | Job `enable-console-plugin`                                              |
-| Gateway hostname patch                                      | `gateway-api`        | Templated from `cluster.yaml`                                            |
-| DSCInitialization + DataScienceCluster                      | `openshift-ai`       | Jobs `apply-dsci`, `apply-dsc` (post-install; wait for operator CRDs)    |
-| Authorino NetworkPolicy                                     | `openshift-ai`       | Template                                                                 |
-| Authorino service serving-cert annotation                   | `rhcl`               | `service-authorino.yaml` (SSA)                                           |
-| Authorino TLS spec                                          | `rhcl`               | `authorino.yaml`                                                         |
-| Restart kuadrant-operator-controller                        | `rhcl`               | Job `restart-kuadrant-operator`                                          |
+| bootstrap.sh step                                           | Helm chart              | Implementation                                                                               |
+| ----------------------------------------------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| Kuadrant CR                                                 | `rhcl`                  | Job `apply-kuadrant` (post-install; waits for operator CRD)                                  |
+| RHCL CSV `ISTIO_GATEWAY_CONTROLLER_NAMES` patch             | `rhcl`                  | Job `patch-rhcl-csv`                                                                         |
+| Enable `kuadrant-console-plugin`                            | `rhcl`                  | Job `enable-console-plugin`                                                                  |
+| Gateway hostname patch                                      | `gateway-api`           | Templated from `cluster.yaml`                                                                |
+| DSCInitialization + DataScienceCluster                      | `openshift-ai`          | Jobs `apply-dsci`, `apply-dsc` (post-install; wait for operator CRDs)                        |
+| Authorino NetworkPolicy                                     | `openshift-ai`          | Template                                                                                     |
+| Authorino service serving-cert annotation                   | `rhcl`                  | `service-authorino.yaml` (SSA)                                                               |
+| Authorino TLS spec                                          | `rhcl`                  | `authorino.yaml`                                                                             |
+| Restart kuadrant-operator-controller                        | `rhcl`                  | Job `restart-kuadrant-operator`                                                              |
 | NFD instance + NVIDIA ClusterPolicy                         | `nvidia-gpu-enablement` | Jobs `apply-nfd-instance`, `apply-gpu-cluster-policy` (post-install; wait for operator CRDs) |
-| LeaderWorkerSetOperator instance                            | `leaderworkerset`    | Job `apply-leaderworkerset` (post-install; waits for operator CRD)     |
-| OdhDashboardConfig (MaaS dashboard flags)                   | `openshift-ai`       | Job `apply-odh-dashboard-config` (post-install; waits for CRD after DSC) |
-| Postgres deployment (optional)                              | `maas-postgres`      | `postgres.yaml` when `maas.postgres.deploy.enabled`                      |
-| `maas-db-config` secret + maas-api restart                  | `maas-postgres`      | Job `create-maas-db-config` (skipped when `existingSecret` is set)       |
-| Simulated LLM models                                        | `llmisvc`            | Multi-model templates                                                    |
-| MaaS subscriptions                                          | `maas-subscriptions` | Subscription templates                                                   |
-| Observability DSCI + cluster monitoring                     | `openshift-ai`       | DSCInitialization + ConfigMap                                            |
-| `default-tenant` telemetry                                  | `maas-subscriptions` | Job `patch-tenant-telemetry` (patches operator-created Tenant)           |
-| Restart `rhods-dashboard`                                   | `openshift-ai`       | Job `restart-rhods-dashboard`                                            |
-| WASM shim disconnected workaround                           | `rhcl`               | Job `apply-wasm-shim-workaround` (optional via `disconnected.enabled`)   |
-| Gateway `default-gateway-config` (WASM insecure registries) | `gateway-api`        | ConfigMap `default-gateway-config` (optional via `disconnected.enabled`) |
+| LeaderWorkerSetOperator instance                            | `leaderworkerset`       | Job `apply-leaderworkerset` (post-install; waits for operator CRD)                           |
+| OdhDashboardConfig (MaaS dashboard flags)                   | `openshift-ai`          | Job `apply-odh-dashboard-config` (post-install; waits for CRD after DSC)                     |
+| Postgres deployment (optional)                              | `maas-postgres`         | `postgres.yaml` when `maas.postgres.deploy.enabled`                                          |
+| `maas-db-config` secret + maas-api restart                  | `maas-postgres`         | Job `create-maas-db-config` (skipped when `existingSecret` is set)                           |
+| Simulated LLM models                                        | `llmisvc`               | Multi-model templates                                                                        |
+| MaaS subscriptions                                          | `maas-subscriptions`    | Subscription templates                                                                       |
+| Observability DSCI + cluster monitoring                     | `openshift-ai`          | DSCInitialization + ConfigMap                                                                |
+| `default-tenant` telemetry                                  | `maas-subscriptions`    | Job `patch-tenant-telemetry` (patches operator-created Tenant)                               |
+| Restart `rhods-dashboard`                                   | `openshift-ai`          | Job `restart-rhods-dashboard`                                                                |
+| WASM shim disconnected workaround                           | `rhcl`                  | Job `apply-wasm-shim-workaround` (optional via `disconnected.enabled`)                       |
+| Gateway `default-gateway-config` (WASM insecure registries) | `gateway-api`           | ConfigMap `default-gateway-config` (optional via `disconnected.enabled`)                     |
 
 
 Post-install Jobs use the cluster `toolsImage` (must include `oc` and `jq`) and run as Helm post-install/post-upgrade hooks.
@@ -258,6 +269,8 @@ Post-install Jobs use the cluster `toolsImage` (must include `oc` and `jq`) and 
 | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
 | `install-operators`, `cert-manager`, `nvidia-gpu-enablement`, `leaderworkerset`, `rhcl`, `gateway-api`, `openshift-ai`, `llmisvc`, `maas-subscriptions` | Adapted from [openshift-setup](https://github.com/jharmison-redhat/openshift-setup) |
 | `maas-postgres`, `observability-operators`, `service-mesh-operators`                                                                                    | Created from `[rhoai-3_4/](../rhoai-3_4/)` Kustomize manifests or repo additions    |
+
+
 
 
 ## Validation
