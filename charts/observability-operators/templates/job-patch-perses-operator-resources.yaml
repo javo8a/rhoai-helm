@@ -21,6 +21,9 @@ rules:
   - apiGroups: ["apps"]
     resources: ["deployments"]
     verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["operators.coreos.com"]
+    resources: ["clusterserviceversions"]
+    verbs: ["get", "list", "watch", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
@@ -68,6 +71,10 @@ spec:
               value: {{ $resourcesPatch.deployment | quote }}
             - name: PERSES_CONTAINER
               value: {{ $resourcesPatch.container | quote }}
+            - name: COO_CSV
+              value: {{ $resourcesPatch.csvName | quote }}
+            - name: COO_SUBSCRIPTION
+              value: {{ $resourcesPatch.subscription | quote }}
             - name: CONTROLLER_MEMORY_REQUEST
               value: {{ $resourcesPatch.requests.memory | quote }}
             - name: CONTROLLER_MEMORY_LIMIT

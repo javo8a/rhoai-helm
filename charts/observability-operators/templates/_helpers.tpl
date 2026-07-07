@@ -43,10 +43,13 @@ Cluster values may omit persesOperator entirely or only override nested fields.
 {{- $installObs := index .Values "install-observability" | default dict }}
 {{- $operators := $installObs.operators | default dict }}
 {{- $coo := index $operators "cluster-observability-operator" | default dict }}
+{{- $csvPatch := (.Values.csvPatch | default dict) }}
 enabled: {{ default true $configured.enabled }}
 namespace: {{ default (default "openshift-cluster-observability-operator" $coo.namespace) $configured.namespace }}
 deployment: {{ default "perses-operator" $configured.deployment }}
-container: {{ default "manager" $configured.container }}
+container: {{ default "perses-operator" $configured.container }}
+csvName: {{ default (default "cluster-observability-operator.v1.4.0" $coo.startingCSV) $csvPatch.csvName }}
+subscription: {{ default "cluster-observability-operator" $csvPatch.subscription }}
 requests:
   memory: {{ default "3Gi" $requests.memory }}
   cpu: {{ default "200m" $requests.cpu }}

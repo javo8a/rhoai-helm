@@ -26,8 +26,12 @@ install-observability:
         enabled: true
       startingCSV: opentelemetry-operator.v0.144.0-3
 
-# perses-operator is deployed by COO in openshift-cluster-observability-operator;
-# defaults are low and can OOM during reconciliation (COO-784).
+# perses-operator is deployed from the COO CSV in openshift-cluster-observability-operator;
+# defaults are 128Mi/100m and COO reconcile will revert deployment-only patches (COO-784).
+csvPatch:
+  csvName: cluster-observability-operator.v1.4.0
+  subscription: cluster-observability-operator
+
 persesOperator:
   resourcesPatch:
     enabled: true
