@@ -13,12 +13,23 @@ MEMORY_LIMIT="${CONTROLLER_MEMORY_LIMIT:?CONTROLLER_MEMORY_LIMIT required}"
 CPU_REQUEST="${CONTROLLER_CPU_REQUEST:?CONTROLLER_CPU_REQUEST required}"
 CPU_LIMIT="${CONTROLLER_CPU_LIMIT:?CONTROLLER_CPU_LIMIT required}"
 
-RESOURCES_JSON=$(jq -n \
+RESOURCES_JSON=$(jq -cn \
   --arg mr "${MEMORY_REQUEST}" \
   --arg ml "${MEMORY_LIMIT}" \
   --arg cr "${CPU_REQUEST}" \
   --arg cl "${CPU_LIMIT}" \
   '{requests: {memory: $mr, cpu: $cr}, limits: {memory: $ml, cpu: $cl}}')
+
+resources_equal() {
+  local current="$1"
+  jq -e -n --argjson current "${current}" --argjson expected "${RESOURCES_JSON}" '$current == $expected' >/dev/null
+}
+
+is_csv_default_resources() {
+  local current="$1"
+  jq -e -n --argjson current "${current}" \
+    '$current.requests.memory == "128Mi" and $current.requests.cpu == "100m"' >/dev/null
+}
 
 wait_for() {
   local description="$1"
@@ -131,7 +142,7 @@ patch_csv_resources() {
   CSV_CURRENT=$(oc get csv "${CSV_NAME}" -n "${NAMESPACE}" -o json | \
     jq -c ".spec.install.spec.deployments[${DEPLOY_IDX}].spec.template.spec.containers[${CONTAINER_IDX}].resources // {}")
 
-  if [ "${CSV_CURRENT}" = "${RESOURCES_JSON}" ]; then
+  if resources_equal "${CSV_CURRENT}"; then
     echo "CSV resources already set"
     return 0
   fi
@@ -158,7 +169,7 @@ patch_deployment_resources() {
 
   CURRENT=$(deployment_resources)
 
-  if [ "${CURRENT}" = "${RESOURCES_JSON}" ]; then
+  if resources_equal "${CURRENT}"; then
     echo "${DEPLOYMENT}/${CONTAINER_NAME} resources already set"
     return 0
   fi
@@ -170,20 +181,33 @@ patch_deployment_resources() {
 
 verify_resources_stable() {
   local elapsed=0
+  local stable_count=0
+  local required_stable=3
 
   while [ "${elapsed}" -lt "${VERIFY_TIMEOUT}" ]; do
     CURRENT=$(deployment_resources)
-    if [ "${CURRENT}" = "${RESOURCES_JSON}" ]; then
-      echo "${DEPLOYMENT} resources stable"
-      return 0
+    if resources_equal "${CURRENT}"; then
+      stable_count=$((stable_count + 1))
+      if [ "${stable_count}" -ge "${required_stable}" ]; then
+        echo "${DEPLOYMENT} resources stable"
+        return 0
+      fi
+      echo "${DEPLOYMENT} resources match (${stable_count}/${required_stable} stable checks)..."
+    else
+      stable_count=0
+      if is_csv_default_resources "${CURRENT}"; then
+        echo "Deployment reverted to CSV defaults; re-patching CSV and deployment..."
+        patch_csv_resources
+      fi
+      echo "Waiting for ${DEPLOYMENT} resources to stabilize (current=${CURRENT})..."
+      patch_deployment_resources || true
     fi
-    echo "Waiting for ${DEPLOYMENT} resources to stabilize (current=${CURRENT})..."
-    patch_deployment_resources || true
     sleep 5
     elapsed=$((elapsed + 5))
   done
 
-  echo "Error: ${DEPLOYMENT} resources reverted to ${CURRENT}; patch COO CSV and retry" >&2
+  CURRENT=$(deployment_resources)
+  echo "Error: ${DEPLOYMENT} resources not stable after ${VERIFY_TIMEOUT}s (current=${CURRENT})" >&2
   exit 1
 }
 

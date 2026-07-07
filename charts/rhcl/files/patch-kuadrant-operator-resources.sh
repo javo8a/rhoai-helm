@@ -11,12 +11,17 @@ MEMORY_LIMIT="${CONTROLLER_MEMORY_LIMIT:?CONTROLLER_MEMORY_LIMIT required}"
 CPU_REQUEST="${CONTROLLER_CPU_REQUEST:?CONTROLLER_CPU_REQUEST required}"
 CPU_LIMIT="${CONTROLLER_CPU_LIMIT:?CONTROLLER_CPU_LIMIT required}"
 
-RESOURCES_JSON=$(jq -n \
+RESOURCES_JSON=$(jq -cn \
   --arg mr "${MEMORY_REQUEST}" \
   --arg ml "${MEMORY_LIMIT}" \
   --arg cr "${CPU_REQUEST}" \
   --arg cl "${CPU_LIMIT}" \
   '{requests: {memory: $mr, cpu: $cr}, limits: {memory: $ml, cpu: $cl}}')
+
+resources_equal() {
+  local current="$1"
+  jq -e -n --argjson current "${current}" --argjson expected "${RESOURCES_JSON}" '$current == $expected' >/dev/null
+}
 
 wait_for() {
   local description="$1"
@@ -92,7 +97,7 @@ patch_csv_resources() {
   CSV_CURRENT=$(oc get csv "${CSV_NAME}" -n "${NAMESPACE}" -o json | \
     jq -c ".spec.install.spec.deployments[${DEPLOY_IDX}].spec.template.spec.containers[0].resources // {}")
 
-  if [ "${CSV_CURRENT}" = "${RESOURCES_JSON}" ]; then
+  if resources_equal "${CSV_CURRENT}"; then
     echo "CSV resources already set"
     return 0
   fi
@@ -118,7 +123,7 @@ patch_deployment_resources() {
     exit 1
   fi
 
-  if [ "${CURRENT}" = "${RESOURCES_JSON}" ]; then
+  if resources_equal "${CURRENT}"; then
     echo "${DEPLOYMENT} resources already set"
     return 0
   fi
