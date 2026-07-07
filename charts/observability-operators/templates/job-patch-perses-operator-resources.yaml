@@ -1,0 +1,87 @@
+{{- $resourcesPatch := include "observability-operators.persesOperatorResourcesPatch" . | fromYaml }}
+{{- if $resourcesPatch.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-perses-operator-resources
+  namespace: {{ $resourcesPatch.namespace }}
+  labels:
+    {{- include "observability-operators.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-perses-operator-resources
+  namespace: {{ $resourcesPatch.namespace }}
+  labels:
+    {{- include "observability-operators.labels" . | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-perses-operator-resources
+  namespace: {{ $resourcesPatch.namespace }}
+  labels:
+    {{- include "observability-operators.labels" . | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-perses-operator-resources
+subjects:
+  - kind: ServiceAccount
+    name: patch-perses-operator-resources
+    namespace: {{ $resourcesPatch.namespace }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-perses-operator-resources
+  namespace: {{ $resourcesPatch.namespace }}
+  labels:
+    {{- include "observability-operators.labels" . | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "2"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "2"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: patch-perses-operator-resources
+      restartPolicy: Never
+      containers:
+        - name: patch-perses-operator-resources
+          image: {{ .Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-perses-operator-resources.sh"]
+          env:
+            - name: PERSES_NAMESPACE
+              value: {{ $resourcesPatch.namespace | quote }}
+            - name: PERSES_DEPLOYMENT
+              value: {{ $resourcesPatch.deployment | quote }}
+            - name: PERSES_CONTAINER
+              value: {{ $resourcesPatch.container | quote }}
+            - name: CONTROLLER_MEMORY_REQUEST
+              value: {{ $resourcesPatch.requests.memory | quote }}
+            - name: CONTROLLER_MEMORY_LIMIT
+              value: {{ $resourcesPatch.limits.memory | quote }}
+            - name: CONTROLLER_CPU_REQUEST
+              value: {{ $resourcesPatch.requests.cpu | quote }}
+            - name: CONTROLLER_CPU_LIMIT
+              value: {{ $resourcesPatch.limits.cpu | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: observability-operators-bootstrap-scripts
+            defaultMode: 493
+{{- end }}

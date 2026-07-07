@@ -1,0 +1,13 @@
+{{- $resourcesPatch := include "observability-operators.persesOperatorResourcesPatch" . | fromYaml }}
+{{- if $resourcesPatch.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: observability-operators-bootstrap-scripts
+  namespace: {{ $resourcesPatch.namespace }}
+  labels:
+    {{- include "observability-operators.labels" . | nindent 4 }}
+data:
+  patch-perses-operator-resources.sh: |
+{{ .Files.Get "files/patch-perses-operator-resources.sh" | indent 4 }}
+{{- end }}
