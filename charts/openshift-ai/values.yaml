@@ -137,3 +137,32 @@ evalhub:
 dashboardRestart:
   enabled: true
   deploymentName: rhods-dashboard
+
+# RHOAI component controllers are reconciled by rhods-operator after apply-dsc.
+# These workloads are not embedded in the rhods-operator CSV; patch live Deployments/StatefulSets.
+controllerResourcesPatch:
+  enabled: true
+  defaults:
+    requests:
+      memory: 3Gi
+      cpu: 200m
+    limits:
+      memory: 5Gi
+      cpu: 500m
+  maasController:
+    enabled: true
+    workloadName: maas-controller
+    container: manager
+  kserveController:
+    enabled: true
+    workloadName: kserve-controller-manager
+    container: manager
+  llmisvcController:
+    enabled: true
+    workloadName: llmisvc-controller-manager
+    container: manager
+  dataScienceCollector:
+    enabled: true
+    workloadName: data-science-collector-collector
+    container: otc-container
+    openTelemetryCollector: data-science-collector
