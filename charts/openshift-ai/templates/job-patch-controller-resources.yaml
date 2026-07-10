@@ -1,0 +1,137 @@
+{{- $patchTargets := include "openshift-ai.controllerResourcePatchTargets" . | fromYaml }}
+{{- if $patchTargets.targets }}
+{{- $applicationsNamespace := default "redhat-ods-applications" .Values.dataScienceClusterInitialization.applicationsNamespace }}
+{{- $monitoringNamespace := default "redhat-ods-monitoring" .Values.dataScienceClusterInitialization.monitoring.namespace }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: patch-controller-resources
+  namespace: {{ $applicationsNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-options: SkipDryRunOnMissingResource=true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-controller-resources-deployments
+  namespace: {{ $applicationsNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-controller-resources-deployments
+  namespace: {{ $applicationsNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-controller-resources-deployments
+subjects:
+  - kind: ServiceAccount
+    name: patch-controller-resources
+    namespace: {{ $applicationsNamespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: patch-controller-resources-monitoring
+  namespace: {{ $monitoringNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+rules:
+  - apiGroups: ["apps"]
+    resources: ["statefulsets"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+  - apiGroups: ["opentelemetry.io"]
+    resources: ["opentelemetrycollectors"]
+    verbs: ["get", "list", "watch", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: patch-controller-resources-monitoring
+  namespace: {{ $monitoringNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: patch-controller-resources-monitoring
+subjects:
+  - kind: ServiceAccount
+    name: patch-controller-resources
+    namespace: {{ $applicationsNamespace }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: patch-controller-resources-script
+  namespace: {{ $applicationsNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+data:
+  patch-controller-resources.sh: |
+{{ .Files.Get "files/patch-controller-resources.sh" | indent 4 }}
+{{- range $target := $patchTargets.targets }}
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: patch-controller-resources-{{ $target.key }}
+  namespace: {{ $applicationsNamespace }}
+  labels:
+    {{- include "openshift-ai.labels" $ | nindent 4 }}
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation
+spec:
+  backoffLimit: 12
+  template:
+    spec:
+      serviceAccountName: patch-controller-resources
+      restartPolicy: Never
+      containers:
+        - name: patch-controller-resources
+          image: {{ $.Values.global.toolsImage }}
+          imagePullPolicy: IfNotPresent
+          command: ["/scripts/patch-controller-resources.sh"]
+          env:
+            - name: TARGET_NAMESPACE
+              value: {{ $target.namespace | quote }}
+            - name: WORKLOAD_KIND
+              value: {{ $target.workloadKind | quote }}
+            - name: WORKLOAD_NAME
+              value: {{ $target.workloadName | quote }}
+            - name: CONTAINER_NAME
+              value: {{ $target.container | quote }}
+            - name: OTEL_COLLECTOR_NAME
+              value: {{ default "" $target.openTelemetryCollector | quote }}
+            - name: CONTROLLER_MEMORY_REQUEST
+              value: {{ $target.requests.memory | quote }}
+            - name: CONTROLLER_MEMORY_LIMIT
+              value: {{ $target.limits.memory | quote }}
+            - name: CONTROLLER_CPU_REQUEST
+              value: {{ $target.requests.cpu | quote }}
+            - name: CONTROLLER_CPU_LIMIT
+              value: {{ $target.limits.cpu | quote }}
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+      volumes:
+        - name: scripts
+          configMap:
+            name: patch-controller-resources-script
+            defaultMode: 493
+{{- end }}
+{{- end }}
